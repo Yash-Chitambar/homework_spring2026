@@ -129,6 +129,42 @@ def run_training(config: TrainConfig) -> None:
 
     ### TODO: PUT YOUR MAIN TRAINING LOOP HERE ###
 
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
+
+    # TODO: Loop over epochs (config.num_epochs)
+    #   Hint: for epoch in range(config.num_epochs):
+
+    batch_idx = 0
+    for epoch in range(config.num_epochs):
+        # TODO: Loop over batches from the DataLoader
+        #   Hint: for batch_idx, batch in enumerate(loader):
+        
+        for state, action_chunk in loader:
+            state = state.to(device)
+            action_chunk = action_chunk.to(device)
+
+            optimizer.zero_grad()
+            
+            MSE = model.compute_loss(state, action_chunk)
+
+            MSE.backward()
+
+            optimizer.step()
+
+            batch_idx += 1
+            if batch_idx % config.log_interval == 0:
+                wandb.log(MLE, step=epoch * len(loader) + batch_idx)
+                logger.log(
+                    {
+                        "epoch": epoch,
+                        "step": epoch * len(loader) + batch_idx,
+                        "loss": MLE.item(),
+                    },
+                    step=epoch * len(loader) + batch_idx,
+                )
+
+        torch.save(model.state_dict(), log_dir / f"checkpoint_epoch_{epoch}.pth")
+
     logger.dump_for_grading()
 
 

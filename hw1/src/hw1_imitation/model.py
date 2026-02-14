@@ -36,7 +36,6 @@ class BasePolicy(nn.Module, metaclass=abc.ABCMeta):
 
 class MSEPolicy(BasePolicy):
     """Predicts action chunks with an MSE loss."""
-
     ### TODO: IMPLEMENT MSEPolicy HERE ###
     def __init__(
         self,
@@ -47,20 +46,54 @@ class MSEPolicy(BasePolicy):
     ) -> None:
         super().__init__(state_dim, action_dim, chunk_size)
 
-    def compute_loss(
-        self,
-        state: torch.Tensor,
-        action_chunk: torch.Tensor,
-    ) -> torch.Tensor:
-        raise NotImplementedError
+        self.hidden_dims = hidden_dims
+        
+        layers = []
+        prev_dim = state_dim
 
-    def sample_actions(
-        self,
-        state: torch.Tensor,
-        *,
-        num_steps: int = 10,
-    ) -> torch.Tensor:
-        raise NotImplementedError
+        for hidden_dim in hidden_dims:
+            layers.append(nn.Linear(prev_dim, hidden_dim))
+            layers.append(nn.ReLU())
+
+            prev_dim = hidden_dim
+
+        layers.append(nn.Linear(prev_dim, action_dim * chunk_size))
+        self.model = nn.Sequential(*layers)
+
+
+
+    def compute_loss(
+    self,
+    state: torch.Tensor,
+    action_chunk: torch.Tensor,
+) -> torch.Tensor:
+        a_pred = self.model(state)
+        a_pred = a_pred.reshape(self.chunk_size, self.action_dim)
+
+        loss = torch.mean((a_pred - action_chunk) ** 2)
+        return loss
+    
+
+    def sample_actions(self, state: torch.Tensor, *, num_steps: int = 10,) -> torch.Tensor: 
+        
+        predictions = []
+
+        batch_size = state.shape[0] # num of predicted states in parallel
+
+        for _ in range(num_steps):
+
+            a_pred = self.model(state) 
+            
+            a_pred = a_pred.reshape(batch_size, self.chunk_size, self.action_dim)
+
+            predictions.append(a_pred)
+
+        
+        return torch.stack(predictions, dim=0).mean(dim = 0)
+
+
+    
+
 
 
 class FlowMatchingPolicy(BasePolicy):
